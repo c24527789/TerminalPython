@@ -24,7 +24,6 @@ ERROR = 3
 # Receive an exact number of bytes
 def recv_exact(connection, size):
 
-    # Create an empty byte string
     data = b""
 
     # Keep receiving until all bytes have arrived
@@ -36,7 +35,6 @@ def recv_exact(connection, size):
         if not chunk:
             raise ConnectionError("Incomplete message")
 
-        # Add received bytes to data
         data += chunk
 
     return data
@@ -64,63 +62,35 @@ def send_message(connection, message_type, data):
     connection.sendall(header + payload)
 
 
-# Main program
-def main():
+# Receive a message from a TCP connection
+def receive_message(connection):
 
-    # Create the command-line argument parser
-    parser = argparse.ArgumentParser(
-        description="Remote Network Monitor"
+    # Receive the binary header
+    header = recv_exact(connection, HEADER_SIZE)
+
+    # Extract the values from the header
+    magic, message_type, length = struct.unpack(
+        HEADER_FORMAT, header
     )
 
-    # Only allow one mode to be selected
-    mode = parser.add_mutually_exclusive_group(required=True)
+    # Check the magic identifier
+    if magic != MAGIC:
+        raise ValueError("Invalid header")
 
-    # Server mode
-    mode.add_argument("-r", action="store_true")
+    # Check the message length
+    if not 0 < length <= MAX_SIZE:
+        raise ValueError("Invalid message length")
 
-    # Client mode
-    mode.add_argument("-t", action="store_true")
+    # Receive the JSON payload
+    payload = recv_exact(connection, length)
 
-    # Port number with a default of 7777
-    parser.add_argument("-p", type=int, default=7777)
+    # Decode the JSON information
+    data = json.loads(payload.decode("utf-8"))
 
-    # Server IP address
-    parser.add_argument("-ip")
-
-    # Read the command-line arguments
-    args = parser.parse_args()
-
-    # Validate the port number
-    if not 1 <= args.p <= 65535:
-        parser.error("Invalid port number")
-
-    # IP address can only be used in client mode
-    if args.r and args.ip is not None:
-        parser.error("-ip can only be used in client mode")
-
-    # Set the default server IP address
-    if args.ip is None:
-        args.ip = "127.0.0.1"
-
-    # Validate the IP address
-    try:
-        ipaddress.IPv4Address(args.ip)
-
-    except ValueError:
-        parser.error("Invalid IP address")
-
-    # Select server mode
-    if args.r:
-        print("Running in server mode")
-        print("Port:", args.p)
-
-    # Select client mode
-    elif args.t:
-        print("Running in client mode")
-        print("Server IP:", args.ip)
-        print("Port:", args.p)
+    return message_type, data
 
 
-# Start the main program
-if __name__ == "__main__":
-    main()
+# Server function
+def run_server(port):
+
+    # Create a TCP socket
