@@ -9,7 +9,8 @@ def run_command(command):
     result = subprocess.run(
         command,
         capture_output=True,
-        text=True
+        text=True,
+        check=True # error handling added for p2 for client file 
     )
 
     return json.loads(result.stdout)
@@ -118,8 +119,8 @@ def main():
         display_network(network)
 
         save_json(network, args.output)
-
-    except (RuntimeError, OSError) as error:
+    # extra error handling for subprocces for invalid json and commands to run 
+    except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as error:
         print("Error:", error)
 
 
